@@ -20,7 +20,4 @@ USER ${HOST_USER}
 ENV HOME=${HOST_HOME}
 ENV PATH=${HOST_HOME}/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-# Without this Claude Code updates itself in the background and the pin stops meaning anything.
-ENV DISABLE_AUTOUPDATER=1
-
 RUN curl -fsSL https://claude.ai/install.sh | bash -s "${CLAUDE_CODE_VERSION}"
