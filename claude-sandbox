@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# claude-sandbox [claude args ...] - run Claude Code in a throwaway container.
+set -euo pipefail
+
+# Bump to pin a new release; the next launch rebuilds the image.
+CLAUDE_CODE_VERSION="${CLAUDE_CODE_VERSION:-2.1.220}"
+
+# Where the Dockerfile lives (this script's directory), used only as the build context.
+SANDBOX_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+IMAGE="claude-sandbox:${CLAUDE_CODE_VERSION}"
+
+# Docker creates a directory at a missing bind source, which would break ~/.claude.json.
+mkdir -p "$HOME/.claude"
+[ -f "$HOME/.claude.json" ] || echo '{}' > "$HOME/.claude.json"
+
+docker image inspect "$IMAGE" >/dev/null 2>&1 || docker build \
+  --build-arg "CLAUDE_CODE_VERSION=$CLAUDE_CODE_VERSION" \
+  --build-arg "HOST_USER=$(id -un)" \
+  --build-arg "HOST_UID=$(id -u)" \
+  --build-arg "HOST_GID=$(id -g)" \
+  --build-arg "HOST_HOME=$HOME" \
+  -t "$IMAGE" "$SANDBOX_DIR"
+
+# Quote each argument so values with spaces survive the trip through tmux.
+CMD="claude --permission-mode=auto"
+for arg in "$@"; do CMD+=" $(printf '%q' "$arg")"; done
+
+# $PWD is the directory you invoked this from: mounted at the same path, and the workdir.
+exec docker run --rm -it \
+  --user "$(id -u):$(id -g)" \
+  --workdir "$PWD" \
+  -v "$PWD:$PWD" \
+  -v "$HOME/.claude:$HOME/.claude" \
+  -v "$HOME/.claude.json:$HOME/.claude.json" \
+  -e "TERM=${TERM:-xterm-256color}" \
+  "$IMAGE" \
+  tmux -u new "$CMD"
