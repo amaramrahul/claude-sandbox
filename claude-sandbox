@@ -6,33 +6,65 @@ set -euo pipefail
 CLAUDE_CODE_VERSION="${CLAUDE_CODE_VERSION:-2.1.220}"
 
 # Where the Dockerfile lives (this script's directory), used only as the build context.
-SANDBOX_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+sandbox_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-IMAGE="claude-sandbox:${CLAUDE_CODE_VERSION}"
+image="claude-sandbox:${CLAUDE_CODE_VERSION}"
 
 # Docker creates a directory at a missing bind source, which would break ~/.claude.json.
 mkdir -p "$HOME/.claude"
 [ -f "$HOME/.claude.json" ] || echo '{}' > "$HOME/.claude.json"
 
-docker image inspect "$IMAGE" >/dev/null 2>&1 || docker build \
+# Identify this folder's container: readable name plus a hash of the canonical
+# path so different folders sharing a basename don't collide.
+canon_pwd="$(pwd -P)"
+basename_sanitized="$(basename "$canon_pwd" | tr -c 'a-zA-Z0-9_.-' '-')"
+hash="$(printf '%s' "$canon_pwd" | sha256sum | cut -c1-8)"
+container_name="claude-sandbox-${basename_sanitized}-${hash}"
+
+# Quote each argument so values with spaces survive the trip through tmux.
+cmd="claude --permission-mode=auto"
+for arg in "$@"; do cmd+=" $(printf '%q' "$arg")"; done
+
+if docker container inspect "$container_name" >/dev/null 2>&1; then
+  existing=1
+else
+  existing=0
+fi
+
+if [ "$existing" -eq 1 ] && [ "$#" -gt 0 ]; then
+  read -rp "A container already exists for this folder ($container_name). Remove it and start fresh with the new arguments? [y/N] " reply
+  if [[ "$reply" =~ ^[Yy]$ ]]; then
+    docker rm -f "$container_name" >/dev/null
+    existing=0
+  else
+    echo "Reusing existing container; the new arguments will be ignored for this run." >&2
+  fi
+fi
+
+if [ "$existing" -eq 1 ]; then
+  if [ "$(docker inspect -f '{{.State.Running}}' "$container_name")" = "true" ]; then
+    exec docker attach "$container_name"
+  else
+    exec docker start -ai "$container_name"
+  fi
+fi
+
+docker image inspect "$image" >/dev/null 2>&1 || docker build \
   --build-arg "CLAUDE_CODE_VERSION=$CLAUDE_CODE_VERSION" \
   --build-arg "HOST_USER=$(id -un)" \
   --build-arg "HOST_UID=$(id -u)" \
   --build-arg "HOST_GID=$(id -g)" \
   --build-arg "HOST_HOME=$HOME" \
-  -t "$IMAGE" "$SANDBOX_DIR"
-
-# Quote each argument so values with spaces survive the trip through tmux.
-CMD="claude --permission-mode=auto"
-for arg in "$@"; do CMD+=" $(printf '%q' "$arg")"; done
+  -t "$image" "$sandbox_dir"
 
 # $PWD is the directory you invoked this from: mounted at the same path, and the workdir.
-exec docker run --rm -it \
+exec docker run -it \
+  --name "$container_name" \
   --user "$(id -u):$(id -g)" \
   --workdir "$PWD" \
   -v "$PWD:$PWD" \
   -v "$HOME/.claude:$HOME/.claude" \
   -v "$HOME/.claude.json:$HOME/.claude.json" \
   -e "TERM=${TERM:-xterm-256color}" \
-  "$IMAGE" \
-  tmux -u new "$CMD"
+  "$image" \
+  tmux -u new "$cmd"
