@@ -3,7 +3,7 @@
 set -euo pipefail
 
 # Bump to pin a new release; the next launch rebuilds the image.
-CLAUDE_CODE_VERSION="${CLAUDE_CODE_VERSION:-2.1.220}"
+CLAUDE_CODE_VERSION="${CLAUDE_CODE_VERSION:-2.1.233}"
 
 # Where the Dockerfile lives (this script's directory), used only as the build context.
 sandbox_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,7 +22,7 @@ hash="$(printf '%s' "$canon_pwd" | sha256sum | cut -c1-8)"
 container_name="claude-sandbox-${basename_sanitized}-${hash}"
 
 # Quote each argument so values with spaces survive the trip through tmux.
-cmd="claude --permission-mode=auto"
+cmd="claude"
 for arg in "$@"; do cmd+=" $(printf '%q' "$arg")"; done
 
 if docker container inspect "$container_name" >/dev/null 2>&1; then
