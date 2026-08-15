@@ -22,7 +22,7 @@ hash="$(printf '%s' "$canon_pwd" | sha256sum | cut -c1-8)"
 container_name="claude-sandbox-${basename_sanitized}-${hash}"
 
 # Quote each argument so values with spaces survive the trip through tmux.
-cmd="claude"
+cmd="claude --dangerously-skip-permissions"
 for arg in "$@"; do cmd+=" $(printf '%q' "$arg")"; done
 
 if docker container inspect "$container_name" >/dev/null 2>&1; then
