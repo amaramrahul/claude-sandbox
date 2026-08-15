@@ -14,4 +14,9 @@ getent passwd "$HOST_UID" >/dev/null 2>&1 || useradd -u "$HOST_UID" -g "$HOST_GI
 export HOME="$HOST_HOME"
 export PATH="$CLAUDE_INSTALL_HOME/.local/bin:$HOST_HOME/.local/bin:$PATH"
 
+# This container is always a throwaway sandbox, so tell Claude Code it's
+# safe to bypass its root/sudo guard on --dangerously-skip-permissions
+# (which otherwise refuses to start when HOST_UID is 0).
+export IS_SANDBOX=1
+
 exec setpriv --reuid="$HOST_UID" --regid="$HOST_GID" --init-groups "$@"
