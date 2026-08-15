@@ -51,20 +51,21 @@ fi
 
 docker image inspect "$image" >/dev/null 2>&1 || docker build \
   --build-arg "CLAUDE_CODE_VERSION=$CLAUDE_CODE_VERSION" \
-  --build-arg "HOST_USER=$(id -un)" \
-  --build-arg "HOST_UID=$(id -u)" \
-  --build-arg "HOST_GID=$(id -g)" \
-  --build-arg "HOST_HOME=$HOME" \
   -t "$image" "$sandbox_dir"
 
 # $PWD is the directory you invoked this from: mounted at the same path, and the workdir.
+# The container starts as root; entrypoint.sh creates/matches the host user
+# below and drops privileges, so the image stays portable across host users.
 exec docker run -it \
   --name "$container_name" \
-  --user "$(id -u):$(id -g)" \
   --workdir "$PWD" \
   -v "$PWD:$PWD" \
   -v "$HOME/.claude:$HOME/.claude" \
   -v "$HOME/.claude.json:$HOME/.claude.json" \
   -e "TERM=${TERM:-xterm-256color}" \
+  -e "HOST_USER=$(id -un)" \
+  -e "HOST_UID=$(id -u)" \
+  -e "HOST_GID=$(id -g)" \
+  -e "HOST_HOME=$HOME" \
   "$image" \
   tmux -u new "$cmd"
