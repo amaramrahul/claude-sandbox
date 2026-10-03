@@ -3,7 +3,7 @@
 set -euo pipefail
 
 # Bump to pin a new release; the next launch rebuilds the image.
-CLAUDE_CODE_VERSION="${CLAUDE_CODE_VERSION:-2.1.233}"
+CLAUDE_CODE_VERSION="${CLAUDE_CODE_VERSION:-2.1.288}"
 
 # Where the Dockerfile lives (this script's directory), used only as the build context.
 sandbox_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
