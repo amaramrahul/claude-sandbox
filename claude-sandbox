@@ -2,8 +2,15 @@
 # claude-sandbox [claude args ...] - run Claude Code in a throwaway container.
 set -euo pipefail
 
-# Bump to pin a new release; the next launch rebuilds the image.
-CLAUDE_CODE_VERSION="${CLAUDE_CODE_VERSION:-2.1.288}"
+# Defaults to the current stable release; set CLAUDE_CODE_VERSION to pin one.
+# A new version changes the image tag, so the next launch rebuilds the image.
+if [ -z "${CLAUDE_CODE_VERSION:-}" ]; then
+  CLAUDE_CODE_VERSION="$(curl -fsSL --max-time 5 https://downloads.claude.ai/claude-code-releases/stable 2>/dev/null || true)"
+  if [[ ! "$CLAUDE_CODE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "claude-sandbox: could not determine the latest stable Claude Code version; set CLAUDE_CODE_VERSION=x.y.z to pin one." >&2
+    exit 1
+  fi
+fi
 
 # Where the Dockerfile lives (this script's directory), used only as the build context.
 sandbox_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
