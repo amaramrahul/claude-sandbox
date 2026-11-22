@@ -1,6 +1,7 @@
 FROM debian:trixie
 
 ARG CLAUDE_CODE_VERSION
+RUN test -n "$CLAUDE_CODE_VERSION" || { echo "CLAUDE_CODE_VERSION build arg is required" >&2; exit 1; }
 
 ENV DEBIAN_FRONTEND=noninteractive
 
