@@ -3,7 +3,7 @@
 set -euo pipefail
 
 # Where the Dockerfile lives (this script's directory), used only as the build context.
-sandbox_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+sandbox_dir="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 
 # Docker creates a directory at a missing bind source, which would break ~/.claude.json.
 mkdir -p "$HOME/.claude"
