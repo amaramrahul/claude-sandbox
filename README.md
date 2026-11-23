@@ -30,7 +30,9 @@ The image is built on first run and rebuilt whenever the Claude Code version cha
 ```sh
 cd ~/some/project
 claude-sandbox                  # start Claude Code, or reattach to this folder's container
-claude-sandbox -c               # arguments are passed through to `claude`
+claude-sandbox -- -c            # arguments after `--` are passed to `claude`
+claude-sandbox -p 3000:3000 -e FOO=bar    # other arguments are passed to `docker run`
+claude-sandbox -v ~/data:/data -- -c      # both
 CLAUDE_CODE_VERSION=2.1.288 claude-sandbox   # pin a version (also disables auto-update)
 claude-sandbox --disable-host-ssh-agent-forwarding      # don't forward the host SSH agent
 claude-sandbox --disable-host-claude-config-mapping     # don't mount ~/.claude and ~/.claude.json
@@ -39,9 +41,10 @@ claude-sandbox --disable-host-gitconfig-mapping         # don't mount ~/.gitconf
 ```
 
 - Without `CLAUDE_CODE_VERSION`, the latest stable release is used for new containers.
-- If a container already exists and you pass arguments, you are asked whether to remove it and start fresh. Otherwise the arguments are ignored.
-- The host SSH agent (`SSH_AUTH_SOCK`) is forwarded and `~/.claude`/`~/.claude.json` are mounted by default, as are `~/.ssh/known_hosts` and `~/.gitconfig` (read-only, only if they exist); the four `--disable-*` flags turn these off. They are not passed to `claude`.
-- These options apply only when a container is created. A reused container keeps its original mounts, and its agent socket goes stale if the host's `SSH_AUTH_SOCK` changes (e.g. a new login session); remove the container to recreate it.
+- Arguments before `--` go to `docker run` (they must be options valid before the image name, e.g. `-e`, `-v`, `-p`, `--network`); arguments after `--` go to `claude`. The `--disable-*` flags are consumed by the script and passed to neither. Note that a bare `claude-sandbox -c` no longer reaches `claude`; use `claude-sandbox -- -c`.
+- If a container already exists and you pass any arguments (docker or claude), you are asked whether to remove it and start fresh. Otherwise the arguments are ignored.
+- The host SSH agent (`SSH_AUTH_SOCK`) is forwarded and `~/.claude`/`~/.claude.json` are mounted by default, as are `~/.ssh/known_hosts` and `~/.gitconfig` (read-only, only if they exist); the four `--disable-*` flags turn these off.
+- These options and any docker arguments apply only when a container is created. A reused container keeps its original mounts, and its agent socket goes stale if the host's `SSH_AUTH_SOCK` changes (e.g. a new login session); remove the container to recreate it.
 - `known_hosts` is read-only, so new host keys accepted in the container are not saved; with the mapping disabled (or no host file), the first connection to a host asks you to confirm its key.
 - Containers are not removed on exit. Clean up with `docker rm claude-sandbox-<folder>-<hash>`, and old images with `docker rmi claude-sandbox:<version>`.
 

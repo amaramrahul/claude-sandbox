@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# claude-sandbox [options] [claude args ...] - run Claude Code in a throwaway container.
+# claude-sandbox [options] [docker run args ...] [-- claude args ...] - run Claude Code in a throwaway container.
 #   --disable-host-ssh-agent-forwarding   do not forward the host SSH agent into the container
 #   --disable-host-claude-config-mapping  do not mount the host ~/.claude and ~/.claude.json
 #   --disable-host-known-hosts-mapping    do not mount the host ~/.ssh/known_hosts (read-only)
 #   --disable-host-gitconfig-mapping      do not mount the host ~/.gitconfig (read-only)
-# Any other arguments are passed through to `claude`. Options only apply when a container is created.
+# Other arguments before `--` are passed to `docker run`; everything after `--` is passed to `claude`.
+# Options and docker arguments only apply when a container is created.
 set -euo pipefail
 
 # Docker build context: the Dockerfile and entrypoint installed by install.sh.
@@ -15,21 +16,24 @@ if [ ! -f "$sandbox_dir/Dockerfile" ]; then
   exit 1
 fi
 
-# Both features are on by default; our own flags are consumed here and the
-# remaining arguments are what gets passed to claude.
+# The mappings are on by default. Our own flags are consumed here; other
+# arguments go to docker run, and everything after `--` goes to claude.
 ssh_agent=1
 map_claude=1
 map_known_hosts=1
 map_gitconfig=1
 claude_args=()
-for arg in "$@"; do
-  case "$arg" in
+docker_args=()
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --) shift; claude_args=("$@"); break ;;
     --disable-host-ssh-agent-forwarding) ssh_agent=0 ;;
     --disable-host-claude-config-mapping) map_claude=0 ;;
     --disable-host-known-hosts-mapping) map_known_hosts=0 ;;
     --disable-host-gitconfig-mapping) map_gitconfig=0 ;;
-    *) claude_args+=("$arg") ;;
+    *) docker_args+=("$1") ;;
   esac
+  shift
 done
 set -- ${claude_args[@]+"${claude_args[@]}"}
 
@@ -56,7 +60,7 @@ else
   existing=0
 fi
 
-if [ "$existing" -eq 1 ] && [ "$#" -gt 0 ]; then
+if [ "$existing" -eq 1 ] && { [ "$#" -gt 0 ] || [ "${#docker_args[@]}" -gt 0 ]; }; then
   read -rp "A container already exists for this folder ($container_name). Remove it and start fresh with the new arguments? [y/N] " reply
   if [[ "$reply" =~ ^[Yy]$ ]]; then
     docker rm -f "$container_name" >/dev/null
@@ -123,6 +127,7 @@ exec docker run -it \
   --workdir "$PWD" \
   -v "$PWD:$PWD" \
   ${run_args[@]+"${run_args[@]}"} \
+  ${docker_args[@]+"${docker_args[@]}"} \
   -e "TERM=${TERM:-xterm-256color}" \
   -e "HOST_USER=$(id -un)" \
   -e "HOST_UID=$(id -u)" \
