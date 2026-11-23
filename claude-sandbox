@@ -2,6 +2,7 @@
 # claude-sandbox [options] [claude args ...] - run Claude Code in a throwaway container.
 #   --disable-host-ssh-agent-forwarding   do not forward the host SSH agent into the container
 #   --disable-host-claude-config-mapping  do not mount the host ~/.claude and ~/.claude.json
+#   --disable-host-known-hosts-mapping    do not mount the host ~/.ssh/known_hosts (read-only)
 # Any other arguments are passed through to `claude`. Options only apply when a container is created.
 set -euo pipefail
 
@@ -17,11 +18,13 @@ fi
 # remaining arguments are what gets passed to claude.
 ssh_agent=1
 map_claude=1
+map_known_hosts=1
 claude_args=()
 for arg in "$@"; do
   case "$arg" in
     --disable-host-ssh-agent-forwarding) ssh_agent=0 ;;
     --disable-host-claude-config-mapping) map_claude=0 ;;
+    --disable-host-known-hosts-mapping) map_known_hosts=0 ;;
     *) claude_args+=("$arg") ;;
   esac
 done
@@ -100,6 +103,10 @@ if [ "$ssh_agent" = 1 ]; then
   else
     echo "claude-sandbox: no SSH agent found (SSH_AUTH_SOCK); continuing without agent forwarding." >&2
   fi
+fi
+# Read-only, and only if it exists (Docker would create a directory at a missing source).
+if [ "$map_known_hosts" = 1 ] && [ -f "$HOME/.ssh/known_hosts" ]; then
+  run_args+=(-v "$HOME/.ssh/known_hosts:$HOME/.ssh/known_hosts:ro")
 fi
 
 # $PWD is the directory you invoked this from: mounted at the same path, and the workdir.
