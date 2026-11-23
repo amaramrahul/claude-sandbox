@@ -15,8 +15,13 @@ Requirements: Linux, `bash`, `curl`, and Docker.
 
 ```sh
 git clone https://github.com/amaramrahul/claude-sandbox.git
-ln -s "$PWD/claude-sandbox/claude-sandbox" ~/.local/bin/claude-sandbox   # any directory on your PATH
+cd claude-sandbox
+./install.sh                      # installs under ~/.local
+./install.sh --prefix /usr/local  # or system-wide (run with sudo)
+./install.sh --uninstall          # remove it again (add the same --prefix if you used one)
 ```
+
+This copies the `claude-sandbox` command to `<prefix>/bin` and its `Dockerfile` and `entrypoint.sh` to `<prefix>/share/claude-sandbox`, so the clone can be deleted afterwards. Make sure `<prefix>/bin` (by default `~/.local/bin`) is on your `PATH`. If you previously installed with a symlink, just run `install.sh` again to replace it. To update, pull and re-run `install.sh`.
 
 The image is built on first run and rebuilt whenever the Claude Code version changes.
 

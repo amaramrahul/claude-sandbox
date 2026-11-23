@@ -5,8 +5,13 @@
 # Any other arguments are passed through to `claude`. Options only apply when a container is created.
 set -euo pipefail
 
-# Where the Dockerfile lives (this script's directory), used only as the build context.
-sandbox_dir="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+# Docker build context: the Dockerfile and entrypoint installed by install.sh.
+script_dir="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+sandbox_dir="$script_dir/../share/claude-sandbox"
+if [ ! -f "$sandbox_dir/Dockerfile" ]; then
+  echo "claude-sandbox: $sandbox_dir/Dockerfile not found; install with install.sh." >&2
+  exit 1
+fi
 
 # Both features are on by default; our own flags are consumed here and the
 # remaining arguments are what gets passed to claude.
