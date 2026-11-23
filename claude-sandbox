@@ -1,13 +1,32 @@
 #!/usr/bin/env bash
-# claude-sandbox [claude args ...] - run Claude Code in a throwaway container.
+# claude-sandbox [options] [claude args ...] - run Claude Code in a throwaway container.
+#   --disable-host-ssh-agent-forwarding   do not forward the host SSH agent into the container
+#   --disable-host-claude-config-mapping  do not mount the host ~/.claude and ~/.claude.json
+# Any other arguments are passed through to `claude`. Options only apply when a container is created.
 set -euo pipefail
 
 # Where the Dockerfile lives (this script's directory), used only as the build context.
 sandbox_dir="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 
+# Both features are on by default; our own flags are consumed here and the
+# remaining arguments are what gets passed to claude.
+ssh_agent=1
+map_claude=1
+claude_args=()
+for arg in "$@"; do
+  case "$arg" in
+    --disable-host-ssh-agent-forwarding) ssh_agent=0 ;;
+    --disable-host-claude-config-mapping) map_claude=0 ;;
+    *) claude_args+=("$arg") ;;
+  esac
+done
+set -- ${claude_args[@]+"${claude_args[@]}"}
+
 # Docker creates a directory at a missing bind source, which would break ~/.claude.json.
-mkdir -p "$HOME/.claude"
-[ -f "$HOME/.claude.json" ] || echo '{}' > "$HOME/.claude.json"
+if [ "$map_claude" = 1 ]; then
+  mkdir -p "$HOME/.claude"
+  [ -f "$HOME/.claude.json" ] || echo '{}' > "$HOME/.claude.json"
+fi
 
 # Identify this folder's container: readable name plus a hash of the canonical
 # path so different folders sharing a basename don't collide.
@@ -66,6 +85,18 @@ docker image inspect "$image" >/dev/null 2>&1 || docker build \
   --build-arg "CLAUDE_CODE_VERSION=$CLAUDE_CODE_VERSION" \
   -t "$image" "$sandbox_dir"
 
+run_args=()
+if [ "$map_claude" = 1 ]; then
+  run_args+=(-v "$HOME/.claude:$HOME/.claude" -v "$HOME/.claude.json:$HOME/.claude.json")
+fi
+if [ "$ssh_agent" = 1 ]; then
+  if [ -n "${SSH_AUTH_SOCK:-}" ] && [ -S "$SSH_AUTH_SOCK" ]; then
+    run_args+=(-v "$SSH_AUTH_SOCK:/run/ssh-agent.sock" -e SSH_AUTH_SOCK=/run/ssh-agent.sock)
+  else
+    echo "claude-sandbox: no SSH agent found (SSH_AUTH_SOCK); continuing without agent forwarding." >&2
+  fi
+fi
+
 # $PWD is the directory you invoked this from: mounted at the same path, and the workdir.
 # The container starts as root; entrypoint.sh creates/matches the host user
 # below and drops privileges, so the image stays portable across host users.
@@ -73,8 +104,7 @@ exec docker run -it \
   --name "$container_name" \
   --workdir "$PWD" \
   -v "$PWD:$PWD" \
-  -v "$HOME/.claude:$HOME/.claude" \
-  -v "$HOME/.claude.json:$HOME/.claude.json" \
+  ${run_args[@]+"${run_args[@]}"} \
   -e "TERM=${TERM:-xterm-256color}" \
   -e "HOST_USER=$(id -un)" \
   -e "HOST_UID=$(id -u)" \

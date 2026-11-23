@@ -6,7 +6,7 @@ RUN test -n "$CLAUDE_CODE_VERSION" || { echo "CLAUDE_CODE_VERSION build arg is r
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates tmux util-linux \
+      ca-certificates tmux util-linux openssh-client \
       vim netcat-openbsd wget curl ntpsec less git net-tools psmisc trash-cli dnsutils \
  && rm -rf /var/lib/apt/lists/*
 
